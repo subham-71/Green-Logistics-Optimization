@@ -1,2 +1,4 @@
 *.co
 *.gr
+devenv
+**/__pycache__
