@@ -2,3 +2,6 @@
 *.gr
 devenv
 **/__pycache__
+results/clusters/local/*
+results/clusters/regional/*
+results/clusters/central/*
