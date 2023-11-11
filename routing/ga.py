@@ -2,8 +2,9 @@ import random
 import copy
 
 class GeneticAlgorithm:
-    def __init__(self, graph, population_size, generations):
+    def __init__(self, graph, subset_nodes=None, population_size=100, generations=500):
         self.graph = graph
+        self.subset_nodes = subset_nodes
         self.population_size = population_size
         self.generations = generations
 
@@ -17,20 +18,28 @@ class GeneticAlgorithm:
         return population
 
     def random_order(self):
-        order = copy.deepcopy(self.graph.nodes)
+        if self.subset_nodes is not None:
+            order = copy.deepcopy(self.subset_nodes)
+        else:
+            order = [node.id for node in self.graph.nodes]
         random.shuffle(order)
         return order
 
     def calculate_fitness(self, order):
         total_duration = 0
+
         for i in range(len(order) - 1):
             edge = self.graph.get_edge_by_nodes(order[i], order[i + 1])
-            total_duration += edge.weight
+
+            # Check if the edge exists
+            if edge is not None:
+                total_duration += edge.weight[0]
+            else:
+                total_duration += 1000
 
         # Add duration for returning to the starting node
-        total_duration += self.graph.get_edge_by_nodes(order[-1], order[0]).weight
+        return 1 / (total_duration)
 
-        return 1 / total_duration  # Invert for maximization
 
     def crossover(self, parent1, parent2):
         crossover_point = random.randint(0, len(parent1) - 1)

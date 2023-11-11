@@ -91,6 +91,7 @@ class GraphBuilder:
                     edge = Edge(node1, node2, weight)
                     graph.add_edge(edge)
                 else:
-                    print(f"Skipping edge with nodes {node_id1} and {node_id2} as one or both nodes are not in the graph.")
+                    pass
+                    # print(f"Skipping edge with nodes {node_id1} and {node_id2} as one or both nodes are not in the graph.")
 
         return graph
