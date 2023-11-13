@@ -3,6 +3,7 @@ import copy
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+import math 
 
 class GeneticAlgorithm:
     def __init__(self, graph, vehicles, subset_nodes=None, population_size=100, generations=500):
@@ -10,11 +11,12 @@ class GeneticAlgorithm:
         self.subset_nodes = subset_nodes if subset_nodes is not None else [(node.id, 1) for node in self.graph.nodes]
         self.population_size = population_size
         self.generations = generations
-        self.vehicles_df = self.get_vehicle_info('../data/world/vehicles.csv', vehicles)
-        self.co2_emissions = self.get_vehicle_emissions(self.vehicles)
-        self.capacity = self.get_vehicles_capacity(self.vehicles_df, vehicles)
+        self.vehicles_df = self.get_vehicles_info('../data/world/vehicles.csv', vehicles)
+        self.co2_emissions = self.get_vehicle_emissions(self.vehicles_df)
+        self.capacity = self.get_vehicles_capacity(self.vehicles_df)
         
     def get_vehicles_info(self, path, vehicles):
+        print("Reading csv")
         df = pd.read_csv(path)
         filtered_df = df[df['Vehicle ID'].isin(vehicles)]
         return filtered_df
@@ -24,10 +26,11 @@ class GeneticAlgorithm:
         return capacity_map
 
     def get_emission_prediction(self, sample):
-        loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
-        return loaded_model.predict(sample).tolist()[0][0]
+        # loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
+        # return loaded_model.predict(sample).tolist()[0][0]
+        return 1000
 
-    def get_vehicle_emmisions(self, vehicles_df):
+    def get_vehicle_emissions(self, vehicles_df):
         features_columns = ['Capacity (cubic feet)', 'Engine Size(L)', 'Cylinders', 'Transmission', 
                          'Fuel Type', 'Fuel Consumption City (L/100 km)', 'Fuel Consumption Hwy (L/100 km)', 
                          'Fuel Consumption Comb (L/100 km)', 'Fuel Consumption Comb (mpg)']
@@ -48,39 +51,42 @@ class GeneticAlgorithm:
     def random_individual(self):
         individual = {}
 
-        # Assign nodes to vehicles based on capacity constraints
-        remaining_nodes = set(self.subset_nodes)
+        # Create a list of vehicles with available capacity for each node
+        available_vehicles = {node: list(self.vehicles_df.index+1) for node, _ in self.subset_nodes}
 
-        while remaining_nodes:
-            # Randomly select a vehicle
-            vehicle_id = random.choice(self.vehicle_data.index)
+        # Randomly assign nodes to vehicles while respecting capacity constraints
+        for node, delivery_capacity in self.subset_nodes:
+            vehicle_id = random.choice(available_vehicles[node])
+            vehicle_capacity = self.capacity[vehicle_id]
 
-            # Select nodes that fit in the vehicle's capacity
-            vehicle_capacity = self.vehicle_data.loc[vehicle_id]['capacity']
-            nodes_for_vehicle = set()
+            # Check if the vehicle has enough capacity for the node
+            while delivery_capacity > vehicle_capacity:
+                available_vehicles[node].remove(vehicle_id)
+                vehicle_id = random.choice(available_vehicles[node])
+                vehicle_capacity = self.capacity[vehicle_id]
 
-            for node, delivery_capacity in remaining_nodes:
-                if self.graph.get_node_weight(node) * delivery_capacity <= vehicle_capacity:
-                    nodes_for_vehicle.add(node)
-                    vehicle_capacity -= self.graph.get_node_weight(node) * delivery_capacity
-
-            # Add the vehicle assignment to the individual
-            individual[vehicle_id] = list(nodes_for_vehicle)
-
-            # Remove assigned nodes from the remaining set
-            remaining_nodes -= nodes_for_vehicle
+            # Add the node to the individual
+            individual.setdefault(vehicle_id, []).append((node, delivery_capacity))
 
         return individual
+
 
     def calculate_fitness(self, individual):
         total_fitness = 0
 
         for vehicle_id, nodes in individual.items():
             route_duration = self.calculate_route_duration(nodes)
-            carbon_emissions = self.calculate_carbon_emissions(nodes)
+            carbon_emissions = self.co2_emissions[vehicle_id]
 
-            # You can define your own formula for combining duration, time, and carbon emissions
-            fitness_value = route_duration * carbon_emissions
+            # Apply negative logarithmic transformation to both duration and emissions
+            neg_log_duration = -math.log(1 + route_duration)
+            neg_log_emissions = -math.log(1 + carbon_emissions)
+
+            # Combine negative logarithmic values with weights
+            duration_weight = 0.9  # Adjust according to your preferences
+            emissions_weight = 0.1  # Adjust according to your preferences
+
+            fitness_value = duration_weight * neg_log_duration + emissions_weight * neg_log_emissions
 
             total_fitness += fitness_value
 
@@ -94,7 +100,7 @@ class GeneticAlgorithm:
 
             # Check if the edge exists
             if edge is not None:
-                total_duration += edge.weight[0]
+                total_duration += edge.weight[1]
             else:
                 total_duration += 1000  # Penalize for non-existent edges
 
@@ -104,26 +110,35 @@ class GeneticAlgorithm:
     def crossover(self, parent1, parent2):
         child = {}
 
+        # Combine routes from parents at the vehicle level
         for vehicle_id in set(parent1.keys()) | set(parent2.keys()):
-            # Crossover at the route level
-            if random.random() < 0.5:
-                child[vehicle_id] = copy.deepcopy(parent1.get(vehicle_id, []))
-            else:
-                child[vehicle_id] = copy.deepcopy(parent2.get(vehicle_id, []))
+            routes = []
+            for parent in [parent1, parent2]:
+                if vehicle_id in parent:
+                    routes.extend(parent[vehicle_id])
+
+            # Ensure all nodes from subset_nodes are included
+            for node, delivery_capacity in self.subset_nodes:
+                if any(node == n for n, _ in routes):
+                    child.setdefault(vehicle_id, []).append((node, delivery_capacity))
 
         # Ensure the child's routes adhere to capacity constraints
         self.adjust_routes_capacity(child)
 
         return child
-
     def mutate(self, individual):
         mutation_point = random.choice(list(individual.keys()))
-
-        # Mutate a random route
         route_to_mutate = individual[mutation_point]
 
-        # Modify the route (add/remove nodes) to adhere to capacity constraints
-        individual[mutation_point] = self.adjust_route_capacity(mutation_point, route_to_mutate)
+        # Mutate a random route by adding or removing nodes while respecting capacity constraints
+        mutated_route = self.adjust_route_capacity(mutation_point, route_to_mutate)
+
+        # Ensure all nodes from subset_nodes are included
+        for node, delivery_capacity in self.subset_nodes:
+            if any(node == n for n, _ in mutated_route):
+                mutated_route.append((node, delivery_capacity))
+
+        individual[mutation_point] = mutated_route
 
     def adjust_routes_capacity(self, individual):
         for vehicle_id, nodes in individual.items():
@@ -131,16 +146,16 @@ class GeneticAlgorithm:
 
     def adjust_route_capacity(self, vehicle_id, nodes):
         # Adjust the route to adhere to capacity constraints
-        vehicle_capacity = self.vehicle_data.loc[vehicle_id]['capacity']
+        vehicle_capacity = self.capacity[vehicle_id]
         remaining_capacity = vehicle_capacity
 
         # Filter nodes based on capacity constraints
         valid_nodes = []
 
         for node, delivery_capacity in nodes:
-            if self.graph.get_node_weight(node) * delivery_capacity <= remaining_capacity:
+            if delivery_capacity <= remaining_capacity:
                 valid_nodes.append((node, delivery_capacity))
-                remaining_capacity -= self.graph.get_node_weight(node) * delivery_capacity
+                remaining_capacity -= delivery_capacity
 
         return valid_nodes
 
