@@ -15,6 +15,6 @@ print("Generating Optimal Route...")
 subset_nodes = [2499 ,3816, 3817,3819, 3820, 3821, 3822, 3824, 3825, 3826, 3827, 3828, 3829, 3830] 
 
 # Create a GeneticAlgorithm instance and run the algorithm
-genetic_algorithm = GeneticAlgorithm(graph, subset_nodes=subset_nodes , population_size=100, generations=500)
+genetic_algorithm = GeneticAlgorithm(graph, subset_nodes , population_size=100, generations=500)
 best_order = genetic_algorithm.evolve()
 print("Best order:", best_order)
