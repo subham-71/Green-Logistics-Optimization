@@ -3,7 +3,7 @@ import copy
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-import math 
+import math
 
 class GeneticAlgorithm:
     def __init__(self, graph, vehicles, subset_nodes=None, population_size=100, generations=500):
@@ -14,7 +14,7 @@ class GeneticAlgorithm:
         self.vehicles_df = self.get_vehicles_info('../data/world/vehicles.csv', vehicles)
         self.co2_emissions = self.get_vehicle_emissions(self.vehicles_df)
         self.capacity = self.get_vehicles_capacity(self.vehicles_df)
-        
+
     def get_vehicles_info(self, path, vehicles):
         print("Reading csv")
         df = pd.read_csv(path)
@@ -28,7 +28,6 @@ class GeneticAlgorithm:
     def get_emission_prediction(self, sample):
         loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
         return loaded_model.predict(sample).tolist()[0][0]
-        # return 1000
 
     def get_vehicle_emissions(self, vehicles_df):
         features_columns = ['Capacity (cubic feet)', 'Engine Size(L)', 'Cylinders', 'Transmission', 
@@ -51,35 +50,35 @@ class GeneticAlgorithm:
     def random_individual(self):
         individual = {}
 
-        # Create a list of vehicles with available capacity for each node
-        available_vehicles = {node: list(self.vehicles_df.index + 1) for node, _ in self.subset_nodes}
+        # Shuffle the subset nodes to randomize the assignment order
+        shuffled_nodes = random.sample(self.subset_nodes, len(self.subset_nodes))
 
-        # Randomly assign nodes to vehicles while respecting capacity constraints
-        for node, delivery_capacity in self.subset_nodes:
+        for node, delivery_capacity in shuffled_nodes:
+            remaining_capacity = delivery_capacity
+
+            # Filter available vehicles for the current node
+            available_vehicles = [v_id for v_id, v_cap in self.capacity.items() if v_cap >= remaining_capacity]
+
             # Check if there are available vehicles for the current node
-            if available_vehicles[node]:
-                vehicle_id = random.choice(available_vehicles[node])
+            if available_vehicles:
+                vehicle_id = random.choice(available_vehicles)
                 vehicle_capacity = self.capacity[vehicle_id]
 
-                # Check if the vehicle has enough capacity for the node
-                while delivery_capacity > vehicle_capacity:
-                    # Remove the chosen vehicle from the available list
-                    available_vehicles[node].remove(vehicle_id)
+                # Assign the remaining capacity to the vehicle
+                assigned_capacity = min(remaining_capacity, vehicle_capacity)
 
-                    # If there are still available vehicles, choose another one
-                    if available_vehicles[node]:
-                        vehicle_id = random.choice(available_vehicles[node])
-                        vehicle_capacity = self.capacity[vehicle_id]
-                    else:
-                        # If no available vehicles, break out of the loop
-                        break
-
-                # Add the node to the individual
-                individual.setdefault(vehicle_id, []).append((node, delivery_capacity))
+                # Check if the assigned capacity exceeds the capacity of a single route
+                if assigned_capacity <= vehicle_capacity:
+                    individual.setdefault(vehicle_id, []).append((node, assigned_capacity))
+                else:
+                    # If the assigned capacity exceeds the capacity of a single route,
+                    # create multiple routes for the vehicle
+                    while assigned_capacity > 0:
+                        route_capacity = min(assigned_capacity, vehicle_capacity)
+                        individual.setdefault(vehicle_id, []).append((node, route_capacity))
+                        assigned_capacity -= route_capacity
 
         return individual
-
-
 
     def calculate_fitness(self, individual):
         total_fitness = 0
@@ -136,6 +135,7 @@ class GeneticAlgorithm:
         self.adjust_routes_capacity(child)
 
         return child
+
     def mutate(self, individual):
         mutation_point = random.choice(list(individual.keys()))
         route_to_mutate = individual[mutation_point]
