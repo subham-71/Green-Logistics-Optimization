@@ -5,18 +5,20 @@ import numpy as np
 import tensorflow as tf
 import math
 
-class GeneticAlgorithm:
+class RoutingGeneticAlgorithm:
     def __init__(self, graph, vehicles, subset_nodes=None, population_size=100, generations=500):
         self.graph = graph
         self.subset_nodes = subset_nodes if subset_nodes is not None else [(node.id, 1) for node in self.graph.nodes]
         self.population_size = population_size
         self.generations = generations
         self.vehicles_df = self.get_vehicles_info('../data/world/vehicles.csv', vehicles)
+        self.loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
         self.co2_emissions = self.get_vehicle_emissions(self.vehicles_df)
         self.capacity = self.get_vehicles_capacity(self.vehicles_df)
 
+
     def get_vehicles_info(self, path, vehicles):
-        print("Reading csv")
+        # print("Reading csv")
         df = pd.read_csv(path)
         filtered_df = df[df['Vehicle ID'].isin(vehicles)]
         return filtered_df
@@ -26,8 +28,8 @@ class GeneticAlgorithm:
         return capacity_map
 
     def get_emission_prediction(self, sample):
-        loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
-        return loaded_model.predict(sample).tolist()[0][0]
+        # loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
+        return self.loaded_model.predict(sample).tolist()[0][0]
 
     def get_vehicle_emissions(self, vehicles_df):
         features_columns = ['Capacity (cubic feet)', 'Engine Size(L)', 'Cylinders', 'Transmission', 
@@ -84,8 +86,8 @@ class GeneticAlgorithm:
         total_fitness = 0
 
         for vehicle_id, nodes in individual.items():
-            route_duration = self.calculate_route_duration(nodes)
-            carbon_emissions = self.co2_emissions[vehicle_id]
+            route_duration , route_distance = self.calculate_route_info(nodes)
+            carbon_emissions = self.co2_emissions[vehicle_id]*route_distance
 
             # Apply negative logarithmic transformation to both duration and emissions
             neg_log_duration = -math.log(1 + route_duration)
@@ -101,20 +103,21 @@ class GeneticAlgorithm:
 
         return total_fitness
 
-    def calculate_route_duration(self, nodes):
+    def calculate_route_info(self, nodes):
         total_duration = 0
-
+        total_distance = 0
         for i in range(len(nodes) - 1):
             edge = self.graph.get_edge_by_nodes(nodes[i][0], nodes[i + 1][0])
 
             # Check if the edge exists
             if edge is not None:
                 total_duration += edge.weight[1]
+                total_distance += edge.weight[0]
             else:
-                total_duration += 1000  # Penalize for non-existent edges
+                total_duration += 100000  # Penalize for non-existent edges
 
-        # Add duration for returning to the starting node
-        return total_duration
+        # Add info  for returning to the starting node
+        return total_duration , total_distance
 
     def crossover(self, parent1, parent2):
         child = {}
@@ -171,7 +174,6 @@ class GeneticAlgorithm:
 
     def evolve(self):
         population = self.initialize_population()
-
         for generation in range(self.generations):
             population = sorted(population, key=lambda x: self.calculate_fitness(x), reverse=True)
 
@@ -193,6 +195,8 @@ class GeneticAlgorithm:
             # Combine parents and offspring for the next generation
             population = parents + offspring
 
-        # Return the best order from the final generation
+        # Return the best order and its fitness score from the final generation
         best_order = max(population, key=lambda x: self.calculate_fitness(x))
-        return best_order
+        best_fitness = self.calculate_fitness(best_order)
+
+        return best_order , best_fitness

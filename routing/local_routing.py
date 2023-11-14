@@ -1,5 +1,5 @@
 from utils import *
-from ga import GeneticAlgorithm
+from routingGA import RoutingGeneticAlgorithm
 
 BASE_PATH = '../data/world'
 NODES_PATH = '../results/clusters/local/local_0.txt'
@@ -16,6 +16,6 @@ subset_nodes = [(2499,1) ,(3816,2), (3817,3) ,(3819,2), (3820,3), (3821,4), (382
 vehicles = [1,2]
 
 # Create a GeneticAlgorithm instance and run the algorithm
-genetic_algorithm = GeneticAlgorithm(graph,vehicles, subset_nodes , population_size=100, generations=1)
-best_order = genetic_algorithm.evolve()
-print("Best order:", best_order)
+genetic_algorithm = RoutingGeneticAlgorithm(graph,vehicles, subset_nodes , population_size=100, generations=1)
+best_order , best_fitness = genetic_algorithm.evolve()
+print("Best order:", best_order , "Best fitness:", best_fitness)

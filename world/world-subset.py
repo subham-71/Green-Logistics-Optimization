@@ -1,7 +1,7 @@
 from utils import Graph, Node, Edge
 import requests
 
-version = "v6"
+version = "v7"
 
 class DatasetExtractor():
 
