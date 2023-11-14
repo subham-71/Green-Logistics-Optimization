@@ -1,5 +1,7 @@
 from utils import *
 from ga import GeneticAlgorithm
+import json
+import random
 
 BASE_PATH = '../data/world'
 LOCAL_NODES_PATH = '../results/clusters/local/'
@@ -26,7 +28,7 @@ for i in range(NUM_LOCAL_WAREHOUSES):
                 continue
             if values:
                 first_value = int(values[0])
-                subset_nodes.append((first_value, 1))
+                subset_nodes.append((first_value, random.randint(1, 20)))
 
     vehicles = [1,2]
 
@@ -34,6 +36,11 @@ for i in range(NUM_LOCAL_WAREHOUSES):
     best_order = genetic_algorithm.evolve()
     local_ordering.append(best_order)
     print(f"Best order for {i}th local warehouse: ", best_order)
+
+output_file_path = '../results/clusters/orders/local_ordering.json'
+
+with open(output_file_path, 'w') as json_file:
+    json.dump(local_ordering, json_file)
 
 
 NUM_REGIONAL_WAREHOUSES = 10
@@ -55,7 +62,7 @@ for i in range(NUM_REGIONAL_WAREHOUSES):
                 continue
             if values:
                 first_value = int(values[0])
-                subset_nodes.append((first_value, 1))
+                subset_nodes.append((first_value, random.randint(1, 20)))
 
     vehicles = [1,2]
 
@@ -63,6 +70,11 @@ for i in range(NUM_REGIONAL_WAREHOUSES):
     best_order = genetic_algorithm.evolve()
     regional_ordering.append(best_order)
     print(f"Best order for {i}th regional warehouse: ", best_order)
+
+output_file_path = '../results/clusters/orders/regional_ordering.json'
+
+with open(output_file_path, 'w') as json_file:
+    json.dump(regional_ordering, json_file)
 
 
 NUM_CENTRAL_WAREHOUSES = 3
@@ -84,12 +96,17 @@ for i in range(NUM_CENTRAL_WAREHOUSES):
                 continue
             if values:
                 first_value = int(values[0])
-                subset_nodes.append((first_value, 1))
+                subset_nodes.append((first_value, random.randint(1, 20)))
 
     vehicles = [1,2]
 
     genetic_algorithm = GeneticAlgorithm(graph, vehicles, subset_nodes , population_size=100, generations=1)
     best_order = genetic_algorithm.evolve()
-    regional_ordering.append(best_order)
+    central_ordering.append(best_order)
     print(f"Best order for {i}th central warehouse: ", best_order)
+
+output_file_path = '../results/clusters/orders/central_ordering.json'
+
+with open(output_file_path, 'w') as json_file:
+    json.dump(central_ordering, json_file)
 
