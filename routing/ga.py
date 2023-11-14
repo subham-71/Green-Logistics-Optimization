@@ -28,6 +28,7 @@ class GeneticAlgorithm:
     def get_emission_prediction(self, sample):
         loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
         return loaded_model.predict(sample).tolist()[0][0]
+        # return 1000
 
     def get_vehicle_emissions(self, vehicles_df):
         features_columns = ['Capacity (cubic feet)', 'Engine Size(L)', 'Cylinders', 'Transmission', 
@@ -51,23 +52,33 @@ class GeneticAlgorithm:
         individual = {}
 
         # Create a list of vehicles with available capacity for each node
-        available_vehicles = {node: list(self.vehicles_df.index+1) for node, _ in self.subset_nodes}
+        available_vehicles = {node: list(self.vehicles_df.index + 1) for node, _ in self.subset_nodes}
 
         # Randomly assign nodes to vehicles while respecting capacity constraints
         for node, delivery_capacity in self.subset_nodes:
-            vehicle_id = random.choice(available_vehicles[node])
-            vehicle_capacity = self.capacity[vehicle_id]
-
-            # Check if the vehicle has enough capacity for the node
-            while delivery_capacity > vehicle_capacity:
-                available_vehicles[node].remove(vehicle_id)
+            # Check if there are available vehicles for the current node
+            if available_vehicles[node]:
                 vehicle_id = random.choice(available_vehicles[node])
                 vehicle_capacity = self.capacity[vehicle_id]
 
-            # Add the node to the individual
-            individual.setdefault(vehicle_id, []).append((node, delivery_capacity))
+                # Check if the vehicle has enough capacity for the node
+                while delivery_capacity > vehicle_capacity:
+                    # Remove the chosen vehicle from the available list
+                    available_vehicles[node].remove(vehicle_id)
+
+                    # If there are still available vehicles, choose another one
+                    if available_vehicles[node]:
+                        vehicle_id = random.choice(available_vehicles[node])
+                        vehicle_capacity = self.capacity[vehicle_id]
+                    else:
+                        # If no available vehicles, break out of the loop
+                        break
+
+                # Add the node to the individual
+                individual.setdefault(vehicle_id, []).append((node, delivery_capacity))
 
         return individual
+
 
 
     def calculate_fitness(self, individual):
