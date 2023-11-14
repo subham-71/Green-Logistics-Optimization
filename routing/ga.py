@@ -26,9 +26,8 @@ class GeneticAlgorithm:
         return capacity_map
 
     def get_emission_prediction(self, sample):
-        # loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
-        # return loaded_model.predict(sample).tolist()[0][0]
-        return 1000
+        loaded_model = tf.keras.models.load_model('../ml-modules/models/emission_model')
+        return loaded_model.predict(sample).tolist()[0][0]
 
     def get_vehicle_emissions(self, vehicles_df):
         features_columns = ['Capacity (cubic feet)', 'Engine Size(L)', 'Cylinders', 'Transmission', 
