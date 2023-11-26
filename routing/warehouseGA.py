@@ -3,6 +3,11 @@ import random
 import matplotlib.pyplot as plt
 from routingGA import RoutingGeneticAlgorithm
 import os
+from sklearn.cluster import KMeans
+from scipy.spatial import distance
+from sklearn.cluster import MiniBatchKMeans
+from scipy.spatial import KDTree
+
 
 class Cluster:
     def __init__(self, nodes):
@@ -13,9 +18,12 @@ class Population:
     def __init__(self, clusters):
         self.clusters = clusters
         self.fitness = 0
+    
+    def __str__(self):
+        return f"Population with {len(self.clusters)} clusters"
 
 class WarehouseGeneticAlgorithm:
-    def __init__(self, graph, n_clusters=12, population_size=100, generations=1, crossover_prob=0.7, mutation_prob=0.2):
+    def __init__(self, graph, n_clusters, population_size=100, generations=1, crossover_prob=0.7, mutation_prob=0.2):
         self.graph = graph
         self.n_clusters = n_clusters
         self.population_size = population_size
@@ -24,6 +32,7 @@ class WarehouseGeneticAlgorithm:
         self.mutation_prob = mutation_prob
         self.population = []
         self.edge_weights = self.calculate_edge_weights()
+        self.cluster_kdtree = None  # Initialize KDTree
 
     
     def calculate_edge_weights(self):
@@ -39,25 +48,34 @@ class WarehouseGeneticAlgorithm:
             edge_weights[i, j] = edge_weights[j, i] = edge.weight[1]
 
         return edge_weights
-
-
+    
     def initialize_population(self):
+        print("Initializing population...")
 
-        print("Initializing Population...")
-        for _ in range(self.population_size):
-            clusters = self.initialize_clusters()
-            population = Population(clusters)
-            self.population.append(population)
+        nodes_array = np.array([[node.x, node.y] for node in self.graph.nodes])
 
-    def initialize_clusters(self):
-        # Initialize clusters randomly using NumPy
+        # Use MiniBatchKMeans for efficient initialization
+        kmeans = MiniBatchKMeans(n_clusters=self.n_clusters, batch_size=100).fit(nodes_array)
+        cluster_labels = kmeans.labels_
 
-        nodes = np.random.permutation(self.graph.nodes)
-        cluster_size = len(nodes) // self.n_clusters
+        clusters = []
+        for i in range(self.n_clusters):
+            cluster_nodes = [self.graph.nodes[j] for j, label in enumerate(cluster_labels) if label == i]
+            clusters.append(Cluster(cluster_nodes))
 
-        clusters = [Cluster(nodes[i:i + cluster_size]) for i in range(0, len(nodes), cluster_size)]
-        return clusters
+        self.population = [Population(clusters) for _ in range(self.population_size)]
 
+        # Create KDTree for efficient nearest neighbor search during mutation
+        cluster_centroids = np.array([np.mean(np.array([[node.x, node.y] for node in cluster.nodes]), axis=0)
+                                      for cluster in clusters])
+        self.cluster_kdtree = KDTree(cluster_centroids)
+
+    def find_nearest_cluster(self, node):
+        # Use KDTree to efficiently find the nearest cluster for a given node
+        node_coordinates = np.array([[node.x, node.y]])
+        dist, idx = self.cluster_kdtree.query(node_coordinates, k=1)
+        return idx[0]
+    
     def convert_clusters_to_nodes_list(self, clusters):
         # Convert a list of Cluster instances to a list of node lists
         return [cluster.nodes for cluster in clusters]
@@ -87,9 +105,9 @@ class WarehouseGeneticAlgorithm:
         for cluster in clusters:
             if len(cluster.nodes) > 0:
                 intra_cluster_distance = self.calculate_intra_cluster_distance(cluster.nodes)
-                routing_fitness = self.get_routing_fitness(cluster)
+                # routing_fitness = self.get_routing_fitness(cluster)
                 total_fitness += intra_cluster_distance 
-                total_fitness += routing_fitness
+                # total_fitness += routing_fitness
         return total_fitness
 
     def calculate_intra_cluster_distance(self, cluster_nodes):
@@ -111,16 +129,47 @@ class WarehouseGeneticAlgorithm:
             parents.append(best_population)
         return parents
 
+    def mutate(self, population):
+        # Perform mutation by reassigning nodes to the nearest cluster using KDTree
+        for cluster in population.clusters:
+            for node in cluster.nodes:
+                nearest_cluster_idx = self.find_nearest_cluster(node)
+                if nearest_cluster_idx != population.clusters.index(cluster):
+                    population.clusters[nearest_cluster_idx].nodes.append(node)
+                    cluster.nodes.remove(node)
 
     def crossover(self, parent1, parent2):
-        # Perform crossover between two parents
-        crossover_point = random.randint(0, len(parent1.clusters) - 1)
-        child_clusters = self.convert_nodes_list_to_clusters(
-            self.convert_clusters_to_nodes_list(parent1.clusters)[:crossover_point] +
-            self.convert_clusters_to_nodes_list(parent2.clusters)[crossover_point:]
-        )
-        child = Population(child_clusters)
-        return child
+        # Perform crossover with balanced node assignment between clusters
+        child_clusters = []
+        for cluster1, cluster2 in zip(parent1.clusters, parent2.clusters):
+            child_nodes = cluster1.nodes + cluster2.nodes
+            child_cluster = Cluster(child_nodes)
+            child_clusters.append(child_cluster)
+
+        while len(child_clusters) > self.n_clusters:
+            # Merge the two most similar clusters
+            min_distance = float('inf')
+            merge_idx = (-1, -1)
+
+            for i in range(len(child_clusters)):
+                for j in range(i + 1, len(child_clusters)):
+                    dist = self.calculate_cluster_distance(child_clusters[i], child_clusters[j])
+                    if dist < min_distance:
+                        min_distance = dist
+                        merge_idx = (i, j)
+
+            i, j = merge_idx
+            # Merge clusters with similar nodes
+            child_clusters[i].nodes += child_clusters[j].nodes
+            child_clusters.pop(j)
+
+        return Population(child_clusters)
+
+    def calculate_cluster_distance(self, cluster1, cluster2):
+        # Calculate distance between two clusters based on their centroids
+        centroid1 = np.mean(np.array([[n.x, n.y] for n in cluster1.nodes]), axis=0)
+        centroid2 = np.mean(np.array([[n.x, n.y] for n in cluster2.nodes]), axis=0)
+        return distance.euclidean(centroid1, centroid2)
     
     def generate_blue_shades(self,n_clusters):
         start_color = (0.2, 0.4, 0.6)
@@ -133,16 +182,8 @@ class WarehouseGeneticAlgorithm:
         shades = [tuple(start + step * i for start, step in zip(start_color, step_size)) for i in range(n_clusters)]
 
         return shades
-
-    def mutate(self, population):
-        # Perform mutation on a set of clusters
-        cluster_index = random.randint(0, len(population.clusters) - 1)
-        cluster = population.clusters[cluster_index]
-        mutation_point1 = random.randint(0, len(cluster.nodes) - 1)
-        mutation_point2 = random.randint(0, len(cluster.nodes) - 1)
-        cluster.nodes[mutation_point1], cluster.nodes[mutation_point2] = cluster.nodes[mutation_point2], cluster.nodes[mutation_point1]
     
-    def plot_clusters(self, clusters_map, iteration):
+    def plot_clusters(self, clusters_map, iteration,fitness_scores):
         # Create a directory to save the plots
         results_directory = "../results/warehouses"
         
@@ -169,10 +210,21 @@ class WarehouseGeneticAlgorithm:
         plt.savefig(os.path.join(results_directory, f'iteration_{iteration}.png'))
         plt.clf()
 
+        plt.plot(range(iteration+1), fitness_scores, marker='o', linestyle='-')
+        plt.title('Fitness Score Evolution')
+        plt.xlabel('Generation')
+        plt.ylabel('Fitness Score')
+        plt.grid(True)
+        plt.savefig(os.path.join(results_directory, f'fitness_score_evolution.png'))
+        plt.clf()
+
     def run(self):
+        print("Starting the Warehouse Genetic Algorithm...")
         self.initialize_population()
         # Create a map of cluster ID to nodes for the best clusters
         best_clusters_map = {}
+        
+        fitness_scores = []  # Store fitness scores across generations
 
         print("Warehouse Generations : " , self.generations)
 
@@ -199,12 +251,16 @@ class WarehouseGeneticAlgorithm:
             best_population = max(self.population, key=lambda x: x.fitness)
             
             for idx, cluster in enumerate(best_population.clusters):
-                cluster_id = f"Cluster_{idx}"
+                cluster_id = f"Cluster_{idx+1}"
                 best_clusters_map[cluster_id] = [node.id for node in cluster.nodes]
             
+            mean_fitness = np.mean([pop.fitness for pop in self.population])
+            fitness_scores.append(mean_fitness)        
+
             # Plot the clusters for each generation
             # if generation % 50 == 0:
-            self.plot_clusters(best_clusters_map, int(generation))
+            # Store the best fitness score of the generation
+            self.plot_clusters(best_clusters_map, int(generation), fitness_scores)
 
         return best_clusters_map
 
