@@ -33,7 +33,7 @@ class WarehouseGeneticAlgorithm:
         self.population = []
         self.edge_weights = self.calculate_edge_weights()
         self.cluster_kdtree = None  # Initialize KDTree
-
+        self.colors = self.generate_hue_shades(n_clusters)
     
     def calculate_edge_weights(self):
         num_nodes = len(self.graph.nodes)
@@ -171,15 +171,35 @@ class WarehouseGeneticAlgorithm:
         centroid2 = np.mean(np.array([[n.x, n.y] for n in cluster2.nodes]), axis=0)
         return distance.euclidean(centroid1, centroid2)
     
-    def generate_blue_shades(self,n_clusters):
-        start_color = (0.2, 0.4, 0.6)
-        end_color = (0.1, 0.1, 0.6)
+    def generate_hue_shades(self, n_clusters):
+        hues = [
+            [(0.2, 0.4, 0.6), (0.1, 0.1, 0.6)],  # Blue hues
+            [(0.1, 0.6, 0.3), (0.1, 0.5, 0.2)],  # Green hues
+            [(0.8, 0.1, 0.1), (0.6, 0.1, 0.1)],  # Red hues
+            [(0.1, 0.8, 0.8), (0.1, 0.6, 0.7)],  # Cyan hues
+            [(0.8, 0.8, 0.1), (0.7, 0.7, 0.1)],  # Yellow hues
+        ]
 
-        # Calculate the step size for each color component
-        step_size = tuple((end - start) / max(1, n_clusters - 1) for start, end in zip(start_color, end_color))
+        hues_count = len(hues)
+        shades_per_hue = n_clusters // hues_count
+        remainder = n_clusters % hues_count
 
-        # Generate blue shades
-        shades = [tuple(start + step * i for start, step in zip(start_color, step_size)) for i in range(n_clusters)]
+        shades = []
+
+        for hue in hues:
+            start_color, end_color = hue
+            for i in range(shades_per_hue):
+                # Vary shade intensity by adding random values
+                shade = [start + random.uniform(0.1, 0.2) for start in start_color]
+                shades.append(shade)
+
+        # Handling any remainder shades
+        if remainder:
+            for i in range(remainder):
+                start_color, end_color = hues[i]
+                # Vary shade intensity by adding random values
+                shade = [start + random.uniform(0.1, 0.3) for start in start_color]
+                shades.append(shade)
 
         return shades
     
@@ -189,15 +209,13 @@ class WarehouseGeneticAlgorithm:
         
         if not os.path.exists(results_directory):
             os.makedirs(results_directory)
-
-        hardcoded_colors = self.generate_blue_shades(len(clusters_map))
         
         # Get node coordinates
         node_coordinates = {node.id: (node.x, node.y) for node in self.graph.nodes}
 
         # Plot the graph with clusters and centroids
         for idx, (cluster_id, cluster_nodes) in enumerate(clusters_map.items()):
-            cluster_color = hardcoded_colors[idx]
+            cluster_color = self.colors[idx]
             cluster_x = [node_coordinates[node_id][0] for node_id in cluster_nodes]
             cluster_y = [node_coordinates[node_id][1] for node_id in cluster_nodes]
             plt.scatter(cluster_x, cluster_y, color=cluster_color, s=50, label=cluster_id)
@@ -205,15 +223,19 @@ class WarehouseGeneticAlgorithm:
             centroid_y = np.mean(cluster_y)
             plt.scatter(centroid_x, centroid_y, marker='o', color='black', edgecolor='black', s=200)
 
-        plt.title(f'Iteration {iteration}')
+        plt.title(f'Iteration {iteration*100}')
         plt.legend()
-        plt.savefig(os.path.join(results_directory, f'iteration_{iteration}.png'))
+        plt.savefig(os.path.join(results_directory, f'iteration_{iteration*100}.png'))
         plt.clf()
 
         plt.plot(range(iteration+1), fitness_scores, marker='o', linestyle='-')
         plt.title('Fitness Score Evolution')
         plt.xlabel('Generation')
         plt.ylabel('Fitness Score')
+
+
+        plt.xticks(range(iteration+1), [f'{i*100}' for i in range(iteration+1)])
+
         plt.grid(True)
         plt.savefig(os.path.join(results_directory, f'fitness_score_evolution.png'))
         plt.clf()
@@ -258,9 +280,9 @@ class WarehouseGeneticAlgorithm:
             fitness_scores.append(mean_fitness)        
 
             # Plot the clusters for each generation
-            # if generation % 50 == 0:
-            # Store the best fitness score of the generation
-            self.plot_clusters(best_clusters_map, int(generation), fitness_scores)
+            if generation*100 % 100 == 0:
+                # Store the best fitness score of the generation
+                self.plot_clusters(best_clusters_map, int(generation), fitness_scores)
 
         return best_clusters_map
 

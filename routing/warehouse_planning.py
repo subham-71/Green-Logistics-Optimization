@@ -11,7 +11,7 @@ GraphBuilder = GraphBuilder(NODES_PATH, EDGES_PATH)
 graph = GraphBuilder.build_graph()
 
 # Create a GeneticAlgorithm instance and run the algorithm
-warehouse_planning = WarehouseGeneticAlgorithm(graph,generations=20, n_clusters=4)
+warehouse_planning = WarehouseGeneticAlgorithm(graph,generations=500, n_clusters=6)
 best_population = warehouse_planning.run()
 
 # Save the best clusters map in JSON format
