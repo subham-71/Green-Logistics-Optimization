@@ -1,9 +1,15 @@
-# OmniPath
+# Green Logistics Optimization
 
 
-## Overview
+This project focuses on enhancing the ecological sustainability of logistics operations. Our primary objective is to identify the most efficient paths to reach delivery points from specific warehouses, significantly reducing both travel time and carbon emissions while adhering to vehicle capacity constraints. Our approach involves a dual-phase strategy: initially devising optimized routes through our green routing algorithm, followed by leveraging this data to strategically plan warehouse locations. While prior research extensively addressed the Vehicle Routing Problem, our methodology presents a holistic solution. We not only optimize routes but dynamically adjust warehouse locations based on feedback derived from route analysis. This integrated approach harmonizes route planning and warehouse allocation, fostering a more streamlined, environmentally conscious delivery system.
 
-This project focuses on enhancing the ecological sustainability of logistics operations. Our primary objective is to identify the most efficient paths to reach delivery points from specific warehouses, significantly reducing both travel time and carbon emissions while adhering to vehicle capacity constraints. Our approach involves a dual-phase strategy: initially devising optimized routes through our green routing algorithm, followed by leveraging this data to strategically plan warehouse locations. While prior research extensively addressed the Vehicle Routing Problem, our methodology presents a holistic solution. We not only optimize routes but dynamically adjust warehouse locations based on feedback derived from route analysis. This integrated approach harmonizes route planning and warehouse allocation, fostering a more streamlined, environmentally conscious delivery system
+## Authors
+
+Paper Available at [Link](https://drive.google.com/file/d/1omr9UL-Z4-8LTENHKA-orQcDTRKO2V-l/view?usp=sharing)
+
+- [Subham Subhasis Sahoo - 2020CSB1317 ](https://www.linkedin.com/in/subham-subhasis-sahoo-6456871bb/)
+- [Aman Pankaj Adatia - 2020CSB1154 ](https://www.linkedin.com/in/aman-adatia-b49103146/)
+- [Vinay Kumar - 2020CSB1141 ](https://www.linkedin.com/in/kvinay07/)
 
 ## Usage
 
