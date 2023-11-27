@@ -223,19 +223,16 @@ class WarehouseGeneticAlgorithm:
             centroid_y = np.mean(cluster_y)
             plt.scatter(centroid_x, centroid_y, marker='o', color='black', edgecolor='black', s=200)
 
-        plt.title(f'Iteration {iteration*100}')
+        plt.title(f'Iteration {iteration}')
         plt.legend()
-        plt.savefig(os.path.join(results_directory, f'iteration_{iteration*100}.png'))
+        plt.savefig(os.path.join(results_directory, f'iteration_{iteration}.png'))
         plt.clf()
 
         plt.plot(range(iteration+1), fitness_scores, marker='o', linestyle='-')
         plt.title('Fitness Score Evolution')
         plt.xlabel('Generation')
         plt.ylabel('Fitness Score')
-
-
-        plt.xticks(range(iteration+1), [f'{i*100}' for i in range(iteration+1)])
-
+        plt.xticks(range(iteration+1), [f'{i}' for i in range(iteration+1)])
         plt.grid(True)
         plt.savefig(os.path.join(results_directory, f'fitness_score_evolution.png'))
         plt.clf()
@@ -280,7 +277,7 @@ class WarehouseGeneticAlgorithm:
             fitness_scores.append(mean_fitness)        
 
             # Plot the clusters for each generation
-            if generation*100 % 100 == 0:
+            if generation % 100 == 0:
                 # Store the best fitness score of the generation
                 self.plot_clusters(best_clusters_map, int(generation), fitness_scores)
 
